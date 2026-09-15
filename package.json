@@ -1,0 +1,14 @@
+{
+  "name": "gostop-peerjs-server",
+  "version": "1.0.0",
+  "description": "Korean Go-Stop (Matgo) HTML5 game with AI & PeerJS Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "peer-standalone": "npx peerjs --port 9000 --path /"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "peer": "^1.0.2"
+  }
+}

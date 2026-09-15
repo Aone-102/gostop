@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>정통 맞고 (Go-Stop) | 스마트 AI & PeerJS 실시간 대전</title>
+  <meta name="description" content="웹 브라우저에서 즐기는 고품질 2인 맞고 화투 게임! 스마트 AI 대전 및 PeerJS P2P 실시간 멀티플레이 지원.">
+  <link rel="stylesheet" href="style.css">
+  <!-- PeerJS WebRTC P2P 라이브러리 -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+  <div id="game-app">
+    <!-- 상단 탑바 -->
+    <header class="top-bar">
+      <div class="brand-title">
+        🎴 정통 맞고 <span class="brand-badge">GO-STOP</span>
+      </div>
+      <div class="top-controls">
+        <button id="btn-sound" class="btn-pill" aria-label="사운드 설정">🔊 사운드 ON</button>
+        <button id="btn-rules" class="btn-pill" aria-label="맞고 족보 및 규칙">📜 족보 안내</button>
+        <button id="btn-lobby" class="btn-pill primary" aria-label="게임 모드 변경">👥 대전 모드 / 방 설정</button>
+      </div>
+    </header>
+
+    <!-- 중앙 상태 토스트 -->
+    <div id="status-toast" class="status-toast">게임이 시작되었습니다.</div>
+
+    <!-- 화투판 융단 메인 보드 -->
+    <main class="mat-board">
+      
+      <!-- 상대방 영역 (AI 또는 원격 게스트) -->
+      <section id="player2-area" class="player-area">
+        <div class="player-info">
+          <div class="player-header">
+            <div class="player-avatar">🤖</div>
+            <div>
+              <div id="p2-name" class="player-name">인공지능 (AI)</div>
+              <span class="turn-pill">상대 차례</span>
+            </div>
+          </div>
+          <div class="player-score-box">
+            <span>점수</span>
+            <span id="p2-score" class="score-num">0점</span>
+            <span id="p2-go-badge" class="go-badge" style="display:none;">0고</span>
+          </div>
+        </div>
+
+        <!-- 상대방 손패 -->
+        <div id="p2-hand" class="hand-container opponent-hand"></div>
+
+        <!-- 상대방 획득 패 트레이 -->
+        <div class="collected-tray">
+          <div class="tray-group">
+            <span class="tray-label">광</span>
+            <div id="p2-gwang" class="tray-cards"></div>
+          </div>
+          <div class="tray-group">
+            <span class="tray-label">열끗</span>
+            <div id="p2-yeol" class="tray-cards"></div>
+          </div>
+          <div class="tray-group">
+            <span class="tray-label">띠</span>
+            <div id="p2-tti" class="tray-cards"></div>
+          </div>
+          <div class="tray-group">
+            <span class="tray-label">피</span>
+            <div id="p2-pi" class="tray-cards"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 중앙 바닥판 & 카드 덱 -->
+      <section class="field-area">
+        <div class="deck-wrapper">
+          <div class="draw-deck">
+            <div class="deck-shadow-card"></div>
+            <div class="hwatu-card card-back" style="position: absolute; top: 0; left: 0;">
+              <div class="card-inner back-pattern">
+                <div class="back-seal">花</div>
+              </div>
+            </div>
+          </div>
+          <span id="deck-count" class="deck-count-pill">20장 남음</span>
+        </div>
+
+        <!-- 바닥에 놓인 화투패들 -->
+        <div id="field-cards-grid" class="field-cards-grid"></div>
+      </section>
+
+      <!-- 플레이어 (나) 영역 -->
+      <section id="player1-area" class="player-area active-turn">
+        <div class="player-info">
+          <div class="player-header">
+            <div class="player-avatar">👤</div>
+            <div>
+              <div class="player-name">나 (플레이어)</div>
+              <span class="turn-pill">내 차례!</span>
+            </div>
+          </div>
+          <div class="player-score-box">
+            <span>점수</span>
+            <span id="p1-score" class="score-num">0점</span>
+            <span id="p1-go-badge" class="go-badge" style="display:none;">0고</span>
+          </div>
+        </div>
+
+        <!-- 내 손패 -->
+        <div id="p1-hand" class="hand-container"></div>
+
+        <!-- 내 획득 패 트레이 -->
+        <div class="collected-tray">
+          <div class="tray-group">
+            <span class="tray-label">광</span>
+            <div id="p1-gwang" class="tray-cards"></div>
+          </div>
+          <div class="tray-group">
+            <span class="tray-label">열끗</span>
+            <div id="p1-yeol" class="tray-cards"></div>
+          </div>
+          <div class="tray-group">
+            <span class="tray-label">띠</span>
+            <div id="p1-tti" class="tray-cards"></div>
+          </div>
+          <div class="tray-group">
+            <span class="tray-label">피</span>
+            <div id="p1-pi" class="tray-cards"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ================= 모달 팝업 섹션 ================= -->
+
+  <!-- 1. 고 / 스톱 선택 모달 -->
+  <div id="go-stop-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>🔥 7점 도달! 선택하세요!</h2>
+        <p>현재 획득 점수: <strong id="current-score-display" style="color: #fbbf24;">7점</strong></p>
+      </div>
+      <div class="go-stop-options">
+        <button id="btn-go" class="btn-choice btn-go">
+          🚀 고 (GO)!
+          <span class="sub-text">판돈 증가 & 추가 득점 도전 (+1점 및 배수)</span>
+        </button>
+        <button id="btn-stop" class="btn-choice btn-stop">
+          🛑 스톱 (STOP)!
+          <span class="sub-text">즉시 승리 확정 및 결산</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 바닥 패 2장 선택 모달 (동일한 월 2장 매칭 시) -->
+  <div id="field-choice-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>화투패 선택</h2>
+        <p>바닥에 같은 달의 패가 2장 있습니다. 가져갈 패를 클릭하세요.</p>
+      </div>
+      <div id="choice-cards-container" class="field-choice-cards"></div>
+    </div>
+  </div>
+
+  <!-- 3. 게임 결과 모달 -->
+  <div id="result-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="result-title">게임 종료</h2>
+      </div>
+      <div id="result-table" class="score-summary-table"></div>
+      <button id="btn-restart" class="btn-pill primary" style="justify-content: center; padding: 12px; margin-top: 10px; font-size: 1rem;">
+        새 판 시작하기 (Restart) 🔁
+      </button>
+    </div>
+  </div>
+
+  <!-- 4. 대전 모드 및 PeerJS 로비 모달 -->
+  <div id="lobby-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>🎮 대전 모드 선택</h2>
+        <p>AI와 대전하거나 친구와 PeerJS P2P로 맞고를 즐기세요.</p>
+      </div>
+      <div class="lobby-menu">
+        <button id="btn-mode-ai" class="lobby-btn accent">
+          <span>🤖 스마트 AI와 1:1 대전</span>
+          <span>즉시 시작 ➔</span>
+        </button>
+        
+        <div style="background: rgba(255,255,255,0.05); padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+          <h4 style="color: #fef08a; margin-bottom: 8px;">🌐 PeerJS 실시간 온라인 대전 (P2P)</h4>
+          <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 10px;">
+            공용 PeerJS 클라우드 또는 로컬 서버를 통해 친구와 직접 연결합니다.
+          </p>
+          <div class="room-input-group">
+            <input type="text" id="input-room-code" class="input-text" placeholder="방 코드 (예: room123)" maxlength="16">
+            <button id="btn-create-room" class="btn-pill primary">방 만들기</button>
+            <button id="btn-join-room" class="btn-pill">참가하기</button>
+          </div>
+
+          <!-- 로컬/자체 PeerJS 서버 설정 토글 -->
+          <div style="margin-top: 12px; font-size: 0.8rem;">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #cbd5e1;">
+              <input type="checkbox" id="toggle-custom-server">
+              <span>자체/로컬 PeerJS 서버 사용 (기본: PeerJS 무료 클라우드)</span>
+            </label>
+            <div id="custom-server-inputs" style="display: none; margin-top: 8px;">
+              <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px;">
+                <input type="text" id="input-server-host" class="input-text" placeholder="호스트 (localhost)" value="localhost">
+                <input type="number" id="input-server-port" class="input-text" placeholder="포트 (9000)" value="9000">
+                <input type="text" id="input-server-path" class="input-text" placeholder="경로 (/)" value="/">
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <button class="btn-close-modal btn-pill" style="justify-content: center; margin-top: 6px;">닫기</button>
+    </div>
+  </div>
+
+  <!-- 5. 족보 및 점수 계산 가이드 모달 -->
+  <div id="rules-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h2>📜 맞고 점수 및 족보 안내</h2>
+      </div>
+      <div class="rules-content">
+        <h3>기본 승리 조건</h3>
+        <p>총 점수가 <strong>7점 이상</strong>이 되면 「고」 또는 「스톱」을 부를 수 있습니다.</p>
+
+        <h3>광(光) 점수</h3>
+        <ul>
+          <li><strong>오광(5광)</strong>: 15점</li>
+          <li><strong>사광(4광)</strong>: 4점</li>
+          <li><strong>삼광(3광)</strong>: 3점 (단, 비광이 포함된 비3광은 2점)</li>
+        </ul>
+
+        <h3>열끗(동물) 점수</h3>
+        <ul>
+          <li>5장부터 1점 (이후 1장당 +1점)</li>
+          <li><strong>고도리 (2월 새, 4월 새, 8월 새)</strong>: 5점</li>
+          <li>열끗이 7장 이상이면 <strong>멍텅구리(멍따)</strong>로 최종 점수 2배!</li>
+        </ul>
+
+        <h3>띠 점수</h3>
+        <ul>
+          <li>5장부터 1점 (이후 1장당 +1점)</li>
+          <li><strong>홍단 (1, 2, 3월 붉은 띠)</strong>: 3점</li>
+          <li><strong>청단 (6, 9, 10월 푸른 띠)</strong>: 3점</li>
+          <li><strong>초단 (4, 5, 7월 글씨 없는 띠)</strong>: 3점 (12월 비단 제외)</li>
+        </ul>
+
+        <h3>피 점수</h3>
+        <ul>
+          <li>10장부터 1점 (이후 1장당 +1점)</li>
+          <li>쌍피는 1장이 피 2장으로 계산됩니다. (9월 국진 술잔 포함)</li>
+        </ul>
+
+        <h3>고(GO) 보너스 및 배판</h3>
+        <ul>
+          <li><strong>1고</strong>: +1점 / <strong>2고</strong>: +2점</li>
+          <li><strong>3고</strong>: 점수 2배 + 1점 / <strong>4고</strong>: 점수 4배 / <strong>5고</strong>: 점수 8배...</li>
+          <li><strong>피박</strong>: 승자가 피로 났을 때 패자 피가 5장 이하이면 점수 2배!</li>
+          <li><strong>광박</strong>: 승자가 광으로 났을 때 패자 광이 0장이면 점수 2배!</li>
+          <li><strong>고박(독박)</strong>: 고를 부른 사람이 상대에게 스톱을 당하면 점수 2배를 물어냅니다!</li>
+        </ul>
+      </div>
+      <button class="btn-close-modal btn-pill primary" style="justify-content: center; margin-top: 10px;">확인</button>
+    </div>
+  </div>
+
+  <!-- 게임 메인 스크립트 -->
+  <script type="module" src="game.js"></script>
+</body>
+</html>
